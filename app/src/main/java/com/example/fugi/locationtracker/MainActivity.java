@@ -13,82 +13,95 @@ import android.Manifest;
 
 
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsResponse;
+import com.google.android.gms.location.SettingsClient;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapFragment;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 
 import java.util.ArrayList;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements OnMapReadyCallback{
     private FusedLocationProviderClient mFusedLocationClient;
-    ArrayList<Location> locationList = new ArrayList<>();
-    Button btn;
+    private LocationCallback mLocationCallback;
+    LocationRequest mLocationRequest = new LocationRequest().setInterval(10000).setFastestInterval(5000).setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
     TextView tv;
-    float distance = 0;
-    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
+    GoogleMap mMap;
+    LatLng pos = new LatLng(100,100);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        btn = (Button) findViewById(R.id.calculate);
-        btn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                getLocation();
-            }
-        });
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
+
+        tv = (TextView)findViewById(R.id.message);
 
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        mLocationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                for (Location location : locationResult.getLocations()) {
+                    pos = new LatLng(location.getLatitude(),location.getLongitude());
+                }
+            }
+        };
+
+        //updateValuesFromBundle(savedInstanceState);
+    }
+//    private void updateValuesFromBundle(Bundle savedInstanceState) {
+//        // Update the value of mRequestingLocationUpdates from the Bundle.
+//        if (savedInstanceState.keySet().contains(REQUESTING_LOCATION_UPDATES_KEY)) {
+//            mRequestingLocationUpdates = savedInstanceState.getBoolean(
+//                    REQUESTING_LOCATION_UPDATES_KEY);
+//        }
+//
+//        // ...
+//
+//        // Update UI to match restored state
+//        updateUI();
+//    }
+    @Override
+    protected void onResume() {
+        super.onResume();
+            startLocationUpdates();
     }
 
-    public void calculateDistance(Location last, Location current){
-        String message="Current Distance Traveled: "+distance;
-        float temp = last.distanceTo(current);
-
-        distance += temp;
-        tv = (TextView) findViewById(R.id.message);
-        tv.setText(message);
+    private void startLocationUpdates() {
+        mFusedLocationClient.requestLocationUpdates(mLocationRequest,
+                mLocationCallback,
+                null /* Looper */);
+    }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        stopLocationUpdates();
     }
 
-    public void getLocation(){
-        tv = (TextView)findViewById(R.id.message);
-        tv.setText("method called");
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            // Permission to access the location is missing.
-            PermissionUtils.requestPermission(this, LOCATION_PERMISSION_REQUEST_CODE,
-                    Manifest.permission.ACCESS_FINE_LOCATION, true);
-        } else{
-            mFusedLocationClient.getLastLocation()
-                    .addOnSuccessListener(this, new OnSuccessListener<Location>() {
-                        @Override
-                        public void onSuccess(Location location) {
-                            tv.setText("Success");
-                            // Got last known location. In some rare situations this can be null.
-                            if (location != null) {
-                                locationList.add(location);
-                            }
-                            if (locationList.size() > 1) {
-                                calculateDistance(locationList.get(locationList.size() - 1), locationList.get(locationList.size() - 2));
-                            }
-                        }
-                    });
-        }
+    private void stopLocationUpdates() {
+        mFusedLocationClient.removeLocationUpdates(mLocationCallback);
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        if (requestCode != LOCATION_PERMISSION_REQUEST_CODE) {
-            return;
-        }
+    public void onMapReady(GoogleMap map) {
+        mMap = map;
+        map.setMyLocationEnabled(true);
+        mMap.addMarker(new MarkerOptions()
+                .position(pos)
+                .title("Marker"));
 
-        if (PermissionUtils.isPermissionGranted(permissions, grantResults,
-                Manifest.permission.ACCESS_FINE_LOCATION)) {
-            // Enable the my location layer if the permission has been granted.
-            getLocation();
-        }
     }
 }
